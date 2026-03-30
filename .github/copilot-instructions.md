@@ -44,21 +44,8 @@ A chainlit application (plug with a2a client) is included for testing and demons
 ### A2A Protocol
 - Handle streaming responses
 
-## Directory Structure (expected)
+## Directory Structure (to be defined)
 
-```
-agentcore-a2a-langraph/
-├── .github/                  # GitHub Copilot instructions & skills
-├── openspec/                 # OpenSpec change management
-├── src/                      # Source code
-│   ├── agents/               # LangGraph agent definitions
-│   ├── tools/                # Agent tools
-│   ├── a2a/                  # A2A server/client implementations
-│   └── agentcore/            # AgentCore deployment configs & helpers
-├── tests/                    # Unit and integration tests
-├── pyproject.toml            # Project metadata & dependencies (uv)
-└── README.md
-```
 
 ## Development Workflow
 
