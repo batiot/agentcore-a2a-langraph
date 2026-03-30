@@ -1,0 +1,16 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.12+, LangGraph, AWS AgentCore (Bedrock AgentCore), A2A protocol, Amazon Bedrock
+  Package manager: uv — always use `uv add`, `uv run`, `uv sync`; never pip
+  Code style: ruff (line-length 100), type hints everywhere, async/await preferred
+  LangGraph: StateGraph with TypedDict state
+  AWS AgentCore: Runtime for deployment with Cloudformation
+  Testing: pytest + pytest-asyncio, moto for AWS mocks
+  Domain: a2a in AWS agent core experiment
+
+rules:
+  tasks:
+    - Break tasks into chunks that touch a single module or concern
+    - Each task should be independently testable
+    - Include a "Testing" sub-task for non-trivial features
