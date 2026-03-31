@@ -30,14 +30,22 @@ The client authentication workflow SHALL use a pre-generated JWT token stored in
 
 ### Requirement: OAuth configuration in CloudFormation
 
-The CloudFormation template SHALL include the OIDC authorizer configuration for the AgentCore Runtime resource, or document a post-deploy CLI step if the CloudFormation property is unavailable.
+The CloudFormation template SHALL include the `AuthorizerConfiguration.CustomJWTAuthorizer` property on the `AWS::BedrockAgentCore::Runtime` resource with the EntraID OIDC discovery URL and client ID. If the property is not supported for `ProtocolConfiguration: A2A`, the deploy script SHALL configure the authorizer via AWS CLI.
 
-#### Scenario: OAuth configured at deploy time
+#### Scenario: OAuth configured at deploy time via CloudFormation
 
 - **WHEN** the CloudFormation stack is created
-- **THEN** the AgentCore Runtime SHALL be configured with the EntraID OIDC authorizer, either via a CloudFormation resource property or via a custom resource that calls the AgentCore Identity API
+- **THEN** the `AWS::BedrockAgentCore::Runtime` resource SHALL include:
+  ```yaml
+  AuthorizerConfiguration:
+    CustomJWTAuthorizer:
+      AllowedClients:
+        - "<entra-client-id>"
+      DiscoveryUrl: "https://login.microsoftonline.com/5e39efe7-3ad5-4fc4-a68c-7b12fb4fdf0f/v2.0/.well-known/openid-configuration"
+  ```
 
-#### Scenario: Fallback to post-deploy configuration
+#### Scenario: Fallback to post-deploy CLI configuration
 
-- **WHEN** the CloudFormation `AuthorizerConfiguration` property is not supported
-- **THEN** the deploy script SHALL include a post-deploy AWS CLI step to configure the OIDC authorizer on the Runtime endpoint
+- **WHEN** the CloudFormation `AuthorizerConfiguration` property is not supported for A2A protocol
+- **THEN** `deploy.sh` SHALL include an AWS CLI step to configure the OIDC authorizer on the Runtime endpoint
+- **AND** this fallback is a required deliverable, not an optional documentation note

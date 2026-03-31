@@ -53,19 +53,31 @@ The Starlette app SHALL expose a `/ping` GET endpoint returning `{"status": "hea
 
 **Why port 9000**: AgentCore Runtime expects the agent process to listen on port 9000. This is the documented convention across all agentcore-samples.
 
-### D4: CloudFormation with inline CodeBuild
+### D4: CloudFormation with S3-sourced CodeBuild
 
-Single CloudFormation template creating: ECR repo, CodeBuild project (ARM64, `aws/codebuild/amazonlinux2-aarch64-standard:3.0`), IAM roles (agent execution, CodeBuild, Lambda custom resource), Lambda function to trigger CodeBuild, and `AWS::BedrockAgentCore::Runtime` resource.
+Single CloudFormation template creating: ECR repo, CodeBuild project (ARM64, `aws/codebuild/amazonlinux2-aarch64-standard:3.0`), S3 bucket for source artifacts, IAM roles (agent execution, CodeBuild, Lambda custom resource), Lambda function to trigger CodeBuild, and `AWS::BedrockAgentCore::Runtime` resource.
 
-CodeBuild uses an **inline buildspec** that generates the Dockerfile and copies source from the repo. This avoids needing a pre-built Docker image before stack creation.
+`deploy.sh` packages the project source into a zip and uploads it to the S3 source bucket before stack creation. CodeBuild uses `Source.Type: S3` to pull the source bundle, and a `buildspec.yml` in the repo root drives the Docker build using the canonical `Dockerfile`. This gives a single owner for the container contract — the repository — and ensures local and cloud builds use the same Dockerfile.
 
-**Why inline buildspec over external**: Keeps everything in one template file. The haiku agent is small enough that the inline approach works without hitting CloudFormation size limits.
+**Why S3 source over inline buildspec**: Inline buildspecs that generate Dockerfiles and embed source code duplicate the container contract and create drift between local and cloud builds. S3-sourced builds use the actual repo artifacts, keeping one canonical Dockerfile.
 
 **Why ARM64**: Cost-effective for a lightweight Python agent. No native dependencies that would break on ARM.
 
 ### D5: EntraID OIDC with pre-generated JWT
 
-AgentCore Runtime configured with OAuth authorizer pointing to EntraID's OIDC discovery endpoint (`https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration`). The Chainlit client passes a pre-generated JWT bearer token (loaded from `A2A_BEARER_TOKEN` env var) in the `Authorization` header.
+AgentCore Runtime configured with `AuthorizerConfiguration.CustomJWTAuthorizer` in CloudFormation, pointing to EntraID's OIDC discovery endpoint. The concrete shape:
+
+```yaml
+AuthorizerConfiguration:
+  CustomJWTAuthorizer:
+    AllowedClients:
+      - "<entra-client-id>"
+    DiscoveryUrl: "https://login.microsoftonline.com/5e39efe7-3ad5-4fc4-a68c-7b12fb4fdf0f/v2.0/.well-known/openid-configuration"
+```
+
+This property is confirmed on `AWS::BedrockAgentCore::Runtime` in the MCP CloudFormation samples. If the property is not supported for A2A protocol (`ProtocolConfiguration: A2A`), `deploy.sh` SHALL include an AWS CLI fallback to configure the OIDC authorizer post-deploy. The CLI fallback is a required deliverable, not an optional documentation note.
+
+The Chainlit client passes a pre-generated JWT bearer token (loaded from `A2A_BEARER_TOKEN` env var) in the `Authorization` header.
 
 **Why pre-generated JWT over MSAL flow**: Simplifies the local client — no MSAL dependency, no device code flow, no token refresh. For an experimental project, a long-lived token (or manually refreshed one) is sufficient.
 
@@ -86,9 +98,10 @@ client/
   .chainlit/          # Chainlit config
 infra/
   template.yaml       # CloudFormation template
-  deploy.sh           # Deploy script (create stack, wait, output endpoint)
-  destroy.sh          # Cleanup script (delete stack, ECR images)
+  deploy.sh           # Deploy script (package source, create stack, wait, output endpoint)
+  destroy.sh          # Cleanup script (delete stack, ECR images, S3 artifacts)
 Dockerfile
+buildspec.yml          # CodeBuild build specification
 pyproject.toml
 ```
 
@@ -96,7 +109,7 @@ pyproject.toml
 
 ## Risks / Trade-offs
 
-**[R1] CloudFormation OAuth authorizer configuration undocumented** → The `AWS::BedrockAgentCore::Runtime` resource's `AuthorizerConfiguration` property is not well-documented in CloudFormation. May need a post-deploy AWS CLI step or custom resource to configure the OIDC authorizer. Mitigation: deploy without auth first, add auth as a separate step if CFn property doesn't work.
+**[R1] CloudFormation OAuth authorizer configuration for A2A protocol** → The `AuthorizerConfiguration.CustomJWTAuthorizer` property is confirmed on `AWS::BedrockAgentCore::Runtime` for MCP protocol. Whether it works identically for `ProtocolConfiguration: A2A` is unverified. Mitigation: `deploy.sh` includes a required AWS CLI fallback that detects and configures the OIDC authorizer if CloudFormation does not apply it.
 
 **[R2] Pre-generated JWT expiration** → EntraID tokens expire (default 1 hour). For demo/testing, the user must manually refresh the token. Mitigation: document the token generation command; keep token refresh as a future enhancement.
 

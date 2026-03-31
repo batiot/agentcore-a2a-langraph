@@ -30,9 +30,9 @@ The system SHALL implement `HaikuAgentExecutor(AgentExecutor)` with `execute()` 
 
 ### Requirement: DefaultRequestHandler with InMemoryTaskStore
 
-The system SHALL use `DefaultRequestHandler` from `a2a-sdk` with an `InMemoryTaskStore` for task state management.
+The system SHALL use `DefaultRequestHandler` from `a2a-sdk` with an `InMemoryTaskStore` for task state management. Task persistence is scoped to the process lifetime — tasks are not durable across container restarts or scale-out events. AgentCore Runtime provides session isolation via the `X-Amzn-Bedrock-AgentCore-Runtime-Session-Id` header, routing requests within a session to the same container instance.
 
-#### Scenario: Task state is tracked
+#### Scenario: Task state is tracked within a session
 
 - **WHEN** a request creates a task
 - **THEN** the task SHALL be stored in the `InMemoryTaskStore` and retrievable by task ID

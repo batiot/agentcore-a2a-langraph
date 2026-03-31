@@ -31,29 +31,32 @@
 - [ ] 4.4 Implement streaming display: consume SSE response, append each token chunk to Chainlit message in real time
 - [ ] 4.5 Test Chainlit client end-to-end: start A2A server locally, launch Chainlit, send message, verify streamed haiku display
 
-## 5. Dockerfile
+## 5. Dockerfile & Build Configuration
 
 - [ ] 5.1 Create `Dockerfile`: Python 3.12 slim base, install `uv`, copy source, `uv sync`, expose port 9000, entrypoint `uv run python -m haiku_agent.main`
-- [ ] 5.2 Test Docker build and run locally: build image, run container, verify agent card and haiku generation on port 9000
+- [ ] 5.2 Create `buildspec.yml`: CodeBuild build specification that uses the canonical Dockerfile — ECR login, `docker build`, `docker tag`, `docker push` (no inline source generation)
+- [ ] 5.3 Test Docker build and run locally: build image, run container, verify agent card and haiku generation on port 9000
 
 ## 6. CloudFormation Deployment
 
-- [ ] 6.1 Create `infra/template.yaml` with parameters: stack name, region, ECR repo name
+- [ ] 6.1 Create `infra/template.yaml` with parameters: stack name, ECR repo name, S3 source bucket name
 - [ ] 6.2 Add ECR repository resource
-- [ ] 6.3 Add IAM roles: agent execution role (Bedrock invoke + CloudWatch), CodeBuild role (ECR + CloudWatch), Lambda custom resource role
-- [ ] 6.4 Add CodeBuild project: ARM64 (`aws/codebuild/amazonlinux2-aarch64-standard:3.0`), inline buildspec that builds and pushes Docker image to ECR
-- [ ] 6.5 Add Lambda custom resource to trigger CodeBuild on stack creation
-- [ ] 6.6 Add `AWS::BedrockAgentCore::Runtime` resource: A2A protocol, port 9000, root path `/`
-- [ ] 6.7 Add stack outputs: AgentCore Runtime endpoint URL, ECR repository URI
-- [ ] 6.8 Implement `infra/deploy.sh`: create stack, wait for completion, print endpoint URL
-- [ ] 6.9 Implement `infra/destroy.sh`: delete ECR images, delete stack, wait for deletion
-- [ ] 6.10 Test deployment: deploy stack to eu-west-3, verify agent reachable via AgentCore endpoint
+- [ ] 6.3 Add IAM roles: agent execution role (Bedrock invoke + CloudWatch), CodeBuild role (ECR + S3 source read + CloudWatch), Lambda custom resource role
+- [ ] 6.4 Add S3 bucket resource for source artifacts
+- [ ] 6.5 Add CodeBuild project: ARM64 (`aws/codebuild/amazonlinux2-aarch64-standard:3.0`), `Source.Type: S3` referencing the source bucket and key, uses `buildspec.yml` from the source bundle
+- [ ] 6.6 Add Lambda custom resource to trigger CodeBuild on stack creation
+- [ ] 6.7 Add `AWS::BedrockAgentCore::Runtime` resource: A2A protocol (`ProtocolConfiguration: A2A`), port 9000, root path `/`, include `AuthorizerConfiguration.CustomJWTAuthorizer` with EntraID OIDC discovery URL
+- [ ] 6.8 Add stack outputs: AgentCore Runtime endpoint URL, ECR repository URI
+- [ ] 6.9 Implement `infra/deploy.sh`: package project source to zip, upload to S3 source bucket, create/update CloudFormation stack, wait for completion, detect whether OAuth was configured by CloudFormation, if not run AWS CLI to configure OIDC authorizer, print endpoint URL
+- [ ] 6.10 Implement `infra/destroy.sh`: delete ECR images, delete S3 source artifacts, delete CloudFormation stack, wait for deletion
+- [ ] 6.11 Test deployment: deploy stack to eu-west-3, verify agent reachable via AgentCore endpoint
 
 ## 7. OAuth Security
 
-- [ ] 7.1 Add OIDC authorizer configuration to CloudFormation template (or document post-deploy CLI step if CFn property unavailable)
-- [ ] 7.2 Document JWT token generation steps in README (curl to EntraID token endpoint with client credentials)
-- [ ] 7.3 Test authenticated access: deploy with OAuth enabled, send request with valid JWT, verify 200; send without token, verify 401
+- [ ] 7.1 Add `AuthorizerConfiguration.CustomJWTAuthorizer` to CloudFormation template with EntraID OIDC discovery URL and client ID
+- [ ] 7.2 Add OAuth CLI fallback logic in `deploy.sh`: detect if authorizer was applied by CloudFormation, if not run AWS CLI to configure OIDC authorizer on the Runtime endpoint
+- [ ] 7.3 Document JWT token generation steps in README (curl to EntraID token endpoint with client credentials)
+- [ ] 7.4 Test authenticated access: deploy with OAuth enabled, send request with valid JWT, verify 200; send without token, verify 401
 
 ## 8. Documentation & Cleanup
 
